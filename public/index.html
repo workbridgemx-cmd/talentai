@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TalentAI — Analizador de CVs</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0f1117;--ink2:#3d4250;--ink3:#7c8494;--ink4:#b0b8c8;--bg:#ffffff;--bg2:#f5f6f8;--bg3:#eceef2;--accent:#2563ff;--alight:#eff3ff;--green:#16a34a;--glight:#f0fdf4;--amber:#d97706;--alight2:#fffbeb;--red:#dc2626;--rlight:#fef2f2;--border:#e2e5ec;--r:10px;--rlg:16px;--sh:0 1px 3px rgba(0,0,0,.07),0 4px 12px rgba(0,0,0,.05);--shlg:0 8px 32px rgba(0,0,0,.10)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:var(--bg2);color:var(--ink);min-height:100vh}
+.app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+.sidebar{background:var(--ink);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+.sb-logo{padding:1.5rem 1.25rem 1rem;border-bottom:1px solid rgba(255,255,255,.08)}
+.sb-logo h1{font-size:17px;font-weight:600;letter-spacing:-.3px}
+.sb-logo h1 span{color:var(--accent)}
+.sb-logo p{font-size:11px;color:rgba(255,255,255,.4);margin-top:2px}
+.nav{padding:.75rem 0;flex:1}
+.nav-sec{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.25);padding:.75rem 1.25rem .25rem;margin-top:.5rem}
+.nav-item{display:flex;align-items:center;gap:10px;padding:.6rem 1.25rem;font-size:13px;cursor:pointer;color:rgba(255,255,255,.55);transition:all .15s;border-left:2px solid transparent}
+.nav-item:hover{color:#fff;background:rgba(255,255,255,.05)}
+.nav-item.active{color:#fff;border-left-color:var(--accent);background:rgba(37,99,255,.15)}
+.sb-foot{padding:1rem 1.25rem;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:rgba(255,255,255,.3)}
+.main{overflow-y:auto}
+.page{display:none;padding:2rem;max-width:1000px}
+.page.active{display:block}
+.page-hdr{margin-bottom:1.75rem}
+.page-hdr h2{font-size:22px;font-weight:600;letter-spacing:-.4px}
+.page-hdr p{font-size:13px;color:var(--ink3);margin-top:4px}
+.card{background:var(--bg);border:1px solid var(--border);border-radius:var(--rlg);padding:1.5rem;margin-bottom:1rem;box-shadow:var(--sh)}
+.card-title{font-size:13px;font-weight:600;color:var(--ink2);margin-bottom:1rem}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:1.5rem}
+.stat-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--rlg);padding:1.25rem;box-shadow:var(--sh)}
+.stat-card .val{font-size:28px;font-weight:600;letter-spacing:-1px}
+.stat-card .lbl{font-size:12px;color:var(--ink3);margin-top:2px}
+.dz{border:1.5px dashed var(--border);border-radius:var(--rlg);padding:2.5rem 1.5rem;text-align:center;cursor:pointer;position:relative;transition:all .2s;background:var(--bg2)}
+.dz:hover,.dz.over{border-color:var(--accent);background:var(--alight)}
+.dz input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.dz-icon{width:48px;height:48px;background:var(--alight);border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto .75rem;font-size:22px}
+.dz-t{font-size:15px;font-weight:500;margin-bottom:4px}
+.dz-s{font-size:13px;color:var(--ink3)}
+.dz-f{font-size:11px;color:var(--ink4);margin-top:6px;background:var(--bg3);display:inline-block;padding:3px 10px;border-radius:20px}
+.qwrap{display:none;margin-top:1rem}
+.qhdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;font-size:13px;font-weight:500}
+.qlist{display:flex;flex-direction:column;gap:5px;max-height:260px;overflow-y:auto}
+.qi{display:grid;grid-template-columns:1fr auto 110px;gap:10px;align-items:center;padding:.6rem .9rem;background:var(--bg);border:1px solid var(--border);border-radius:var(--r)}
+.qn{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qz{font-size:11px;color:var(--ink4)}
+.qst{font-size:11px;padding:3px 10px;border-radius:20px;text-align:center;font-weight:500;white-space:nowrap}
+.sp{background:var(--bg3);color:var(--ink3)}.sr{background:#e0f2fe;color:#0369a1}.sa{background:var(--alight2);color:var(--amber)}.sd{background:var(--glight);color:var(--green)}.se{background:var(--rlight);color:var(--red)}
+.prog{display:none;margin:1rem 0}
+.prog-lbl{display:flex;justify-content:space-between;font-size:12px;color:var(--ink3);margin-bottom:6px}
+.prog-track{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.prog-fill{height:100%;background:var(--accent);border-radius:3px;width:0%;transition:width .4s}
+.btn{padding:.6rem 1.25rem;font-size:13px;font-weight:500;border-radius:var(--r);cursor:pointer;border:none;font-family:'Inter',sans-serif;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:#1d4ed8}
+.btn-secondary{background:var(--bg);color:var(--ink2);border:1px solid var(--border)}.btn-secondary:hover{background:var(--bg2)}
+.btn-danger{background:transparent;color:var(--red);border:1px solid var(--border);font-size:12px;padding:4px 10px}
+.btn-run{width:100%;padding:.8rem;font-size:15px;font-weight:600;background:var(--accent);color:#fff;border:none;border-radius:var(--r);cursor:pointer;margin-top:1rem;font-family:'Inter',sans-serif;transition:background .15s}
+.btn-run:hover{background:#1d4ed8}.btn-run:disabled{opacity:.4;cursor:not-allowed}
+.msg{font-size:13px;padding:.65rem 1rem;border-radius:var(--r);margin:.5rem 0;display:none}
+.msg-err{background:var(--rlight);color:var(--red);border:1px solid #fecaca}
+.msg-ok{background:var(--glight);color:var(--green);border:1px solid #bbf7d0}
+.tbl-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:1rem}
+.srch-in{padding:7px 12px;font-size:13px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;min-width:200px}
+.flt-sel{padding:7px 10px;font-size:12px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;height:34px;cursor:pointer}
+.exp-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;font-size:12px;font-weight:500;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--ink2);cursor:pointer;margin-left:auto;font-family:'Inter',sans-serif}
+.exp-btn:hover{background:var(--bg2)}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--rlg);background:var(--bg);box-shadow:var(--sh)}
+table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+th{background:var(--bg2);padding:.6rem .9rem;text-align:left;font-weight:600;font-size:11px;color:var(--ink3);letter-spacing:.02em;text-transform:uppercase;white-space:nowrap;border-bottom:1px solid var(--border);cursor:pointer;user-select:none}
+th:hover{color:var(--ink)}
+td{padding:.65rem .9rem;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--bg2)}
+.grade{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;font-family:'DM Mono',monospace}
+.gAp{background:var(--glight);color:var(--green)}.gA{background:var(--alight);color:var(--accent)}.gB{background:var(--alight2);color:var(--amber)}.gC,.gD{background:var(--rlight);color:var(--red)}
+.tag-pill{display:inline-block;font-size:10px;padding:2px 7px;border-radius:20px;margin:1px;background:var(--bg3);color:var(--ink3);border:1px solid var(--border)}
+.tag-imm{background:var(--alight);color:var(--accent);border-color:#c7d7fe}
+.tag-lang{background:var(--glight);color:var(--green);border-color:#bbf7d0}
+.act-btn{font-size:12px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:transparent;color:var(--ink3);margin-right:3px;font-family:'Inter',sans-serif}
+.act-btn:hover{color:var(--red);border-color:#fecaca}
+.empty-state{text-align:center;padding:3rem 1rem;color:var(--ink4);display:none}
+.empty-state .ei{font-size:36px;display:block;margin-bottom:.75rem}
+.cfg-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;font-weight:500;color:var(--ink2)}
+.field input,.field textarea{padding:8px 12px;font-size:13px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif}
+.field input:focus,.field textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,255,.1)}
+.field textarea{min-height:100px;resize:vertical;font-size:12px;font-family:'DM Mono',monospace}
+.field input[type=password]{font-family:'DM Mono',monospace}
+.field small{font-size:11px;color:var(--ink4)}
+.field-full{grid-column:1/-1}
+.save-banner{display:none;font-size:13px;color:var(--green);padding:.5rem .9rem;background:var(--glight);border-radius:var(--r);border:1px solid #bbf7d0;margin-top:.75rem}
+.modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:center;justify-content:center;padding:1.5rem}
+.modal-ov.open{display:flex}
+.modal{background:var(--bg);border-radius:var(--rlg);border:1px solid var(--border);padding:1.75rem;max-width:640px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:var(--shlg)}
+.modal-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.25rem}
+.modal-hdr h3{font-size:18px;font-weight:600;letter-spacing:-.3px}
+.modal-close{background:var(--bg2);border:1px solid var(--border);border-radius:8px;cursor:pointer;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--ink3);flex-shrink:0}
+.score-hero{display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem;background:var(--bg2);border-radius:var(--r);margin-bottom:1.25rem}
+.score-circle{width:72px;height:72px;border-radius:50%;border:3px solid;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0}
+.sc-num{font-size:22px;font-weight:700;line-height:1;font-family:'DM Mono',monospace}
+.sc-lbl{font-size:10px;margin-top:1px}
+.sec-lbl{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4);margin:1.25rem 0 .5rem;padding-top:1.25rem;border-top:1px solid var(--border)}
+.kv-grid{display:grid;grid-template-columns:1fr 1fr;gap:.4rem .75rem}
+.kv .k{font-size:10px;color:var(--ink4);text-transform:uppercase;letter-spacing:.05em}
+.kv .v{font-size:13px;font-weight:500;margin-top:1px}
+.bar-row{display:grid;grid-template-columns:140px 1fr 30px;align-items:center;gap:8px;margin-bottom:5px}
+.bar-row span{font-size:11px;color:var(--ink3)}
+.bar-track{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px}
+.bar-val{font-size:11px;font-weight:600;text-align:right;font-family:'DM Mono',monospace}
+.tags-row{display:flex;flex-wrap:wrap;gap:5px}
+.res-tbl{margin-top:1rem;border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.res-row{display:grid;grid-template-columns:36px 1fr 55px 55px 85px 100px;gap:8px;padding:.55rem .9rem;border-bottom:1px solid var(--border);font-size:12px;align-items:center}
+.res-row:last-child{border-bottom:none}
+.res-hdr{font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.03em;background:var(--bg2)}
+@keyframes spin{to{transform:rotate(360deg)}}.spin{animation:spin 1s linear infinite;display:inline-block}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-logo">
+      <h1>Talent<span>AI</span></h1>
+      <p>Analizador de CVs con IA</p>
+    </div>
+    <nav class="nav">
+      <div class="nav-sec">Principal</div>
+      <div class="nav-item active" onclick="showPage('ranking',this)">🏆 Ranking</div>
+      <div class="nav-item" onclick="showPage('upload',this)">📂 Subir CVs</div>
+      <div class="nav-sec">Sistema</div>
+      <div class="nav-item" onclick="showPage('config',this)">⚙️ Configuración</div>
+    </nav>
+    <div class="sb-foot" id="sbFoot">0 candidatos</div>
+  </aside>
+
+  <main class="main">
+    <!-- RANKING -->
+    <div class="page active" id="page-ranking">
+      <div class="page-hdr"><h2>Ranking de Candidatos</h2><p>Ordenado por score. Haz clic en columnas para reordenar.</p></div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="val" id="st1">0</div><div class="lbl">Total candidatos</div></div>
+        <div class="stat-card"><div class="val" id="st2">0</div><div class="lbl">Grado A+ / A</div></div>
+        <div class="stat-card"><div class="val" id="st3">0</div><div class="lbl">Exp. en visas</div></div>
+        <div class="stat-card"><div class="val" id="st4">0</div><div class="lbl">Bilingües</div></div>
+      </div>
+      <div class="tbl-actions">
+        <input class="srch-in" id="srch" placeholder="Buscar nombre, ciudad, skill..." oninput="renderTable()">
+        <select class="flt-sel" id="fGrade" onchange="renderTable()"><option value="">Todos los grados</option><option>A+</option><option>A</option><option>B</option><option>C</option><option>D</option></select>
+        <select class="flt-sel" id="fSen" onchange="renderTable()"><option value="">Seniority</option><option>Entry Level</option><option>Junior</option><option>Semi Senior</option><option>Senior</option><option>Lead</option><option>Manager</option><option>Director</option><option>Executive</option></select>
+        <select class="flt-sel" id="fImm" onchange="renderTable()"><option value="">Visas</option><option value="PERM">PERM</option><option value="NIW">NIW</option><option value="H-1B">H-1B</option><option value="EB-">EB-1/2/3</option><option value="Asylum">Asylum</option><option value="Business">Business</option><option value="Humanitarian">Humanitarian</option></select>
+        <button class="btn btn-danger" onclick="clearFilters()">Limpiar</button>
+        <button class="exp-btn" onclick="exportCSV()">⬇ Exportar Excel</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th style="width:38px" onclick="sortBy('score_global')">#</th>
+            <th style="width:140px" onclick="sortBy('nombre')">Nombre</th>
+            <th style="width:54px" onclick="sortBy('score_global')">Score</th>
+            <th style="width:48px" onclick="sortBy('grado')">Grado</th>
+            <th style="width:88px" onclick="sortBy('seniority')">Seniority</th>
+            <th style="width:48px" onclick="sortBy('anos_experiencia')">Años</th>
+            <th style="width:100px">Ciudad</th>
+            <th style="width:140px">Visas</th>
+            <th style="width:100px">Idiomas</th>
+            <th style="width:110px">Rol</th>
+            <th style="width:70px">Ver</th>
+          </tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="emptyRank"><span class="ei">👥</span><p>Sin candidatos. Ve a <strong>Subir CVs</strong> para comenzar.</p></div>
+    </div>
+
+    <!-- UPLOAD -->
+    <div class="page" id="page-upload">
+      <div class="page-hdr"><h2>Subir CVs</h2><p>Arrastra uno o varios archivos. La IA los analiza automáticamente.</p></div>
+      <div class="card">
+        <div class="dz" id="dz">
+          <input type="file" id="fi" accept=".pdf,.docx,.doc,.txt" multiple>
+          <div class="dz-icon">📂</div>
+          <div class="dz-t">Arrastra tus CVs aquí o haz clic</div>
+          <div class="dz-s">Selecciona uno o varios archivos a la vez</div>
+          <div class="dz-f">PDF · DOCX · DOC · TXT</div>
+        </div>
+        <div class="qwrap" id="qwrap">
+          <div class="qhdr"><span id="qTitle">CVs en cola</span><button class="btn btn-secondary" style="font-size:12px;padding:4px 10px" onclick="clearQ()">Limpiar</button></div>
+          <div class="qlist" id="qlist"></div>
+        </div>
+        <div class="prog" id="prog">
+          <div class="prog-lbl"><span id="progLbl">Procesando...</span><span id="progCnt">0/0</span></div>
+          <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+        </div>
+        <div class="msg msg-err" id="errMsg"></div>
+        <div class="msg msg-ok" id="okMsg"></div>
+        <button class="btn-run" id="runBtn" onclick="processAll()">✨ Analizar todos con IA</button>
+      </div>
+      <div class="card" id="resCard" style="display:none">
+        <div class="card-title">✅ Resultados de esta sesión</div>
+        <div class="res-tbl">
+          <div class="res-row res-hdr"><span>#</span><span>Nombre</span><span>Score</span><span>Grado</span><span>Seniority</span><span>Ciudad</span></div>
+          <div id="resRows"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONFIG -->
+    <div class="page" id="page-config">
+      <div class="page-hdr"><h2>Configuración</h2><p>Personaliza los campos de análisis y tu API Key.</p></div>
+      <div class="card">
+        <div class="card-title">🔑 API Key de Anthropic</div>
+        <div class="field">
+          <label>API Key</label>
+          <input type="password" id="cfgKey" placeholder="sk-ant-api03-...">
+          <small>Obtenla en console.anthropic.com/settings/keys · ~$0.003 por CV analizado</small>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">⚖️ Pesos del scoring (deben sumar 100%)</div>
+        <div class="cfg-grid">
+          <div class="field"><label>Experiencia (%)</label><input type="number" id="wExp" value="35" min="0" max="100"></div>
+          <div class="field"><label>Conocimientos técnicos (%)</label><input type="number" id="wTec" value="25" min="0" max="100"></div>
+          <div class="field"><label>Idiomas (%)</label><input type="number" id="wIdi" value="10" min="0" max="100"></div>
+          <div class="field"><label>Estabilidad laboral (%)</label><input type="number" id="wEst" value="10" min="0" max="100"></div>
+          <div class="field"><label>Soft Skills (%)</label><input type="number" id="wSoft" value="10" min="0" max="100"></div>
+          <div class="field"><label>Formación académica (%)</label><input type="number" id="wEdu" value="10" min="0" max="100"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🛂 Campos a analizar</div>
+        <div class="cfg-grid">
+          <div class="field field-full"><label>Tipos de visa / inmigración (uno por línea)</label>
+            <textarea id="cfgVisas">PERM
+NIW
+EB-1
+EB-2
+EB-3
+H-1B
+L-1
+O-1
+TN
+E-2
+Asylum
+Refugee
+TPS
+DACA
+Humanitarian
+Removal Defense
+Consular Processing
+Business Immigration
+Family Petitions
+Naturalization</textarea></div>
+          <div class="field field-full"><label>Roles / perfiles (uno por línea)</label>
+            <textarea id="cfgRoles">Legal Assistant
+Immigration Paralegal
+Intake Specialist
+Case Manager
+Recruiter
+HR Generalist
+Sales Representative
+Customer Service
+Executive Assistant
+Virtual Assistant
+Marketing Specialist
+Project Manager
+Software Developer
+Data Analyst
+Accountant
+Billing Specialist
+Office Manager</textarea></div>
+          <div class="field field-full"><label>Herramientas / software (uno por línea)</label>
+            <textarea id="cfgTools">Clio
+Litify
+MyCase
+Docketwise
+Salesforce
+HubSpot
+Monday.com
+Asana
+Trello
+QuickBooks
+Microsoft Office
+Google Workspace
+Canva
+WordPress
+Google Ads
+Facebook Ads
+Mailchimp</textarea></div>
+          <div class="field field-full"><label>Áreas adicionales a evaluar</label>
+            <textarea id="cfgExtra" style="min-height:70px">Experiencia en marketing digital
+Manejo de redes sociales
+Conocimiento en finanzas y contabilidad
+Experiencia en atención al cliente
+Habilidades de ventas</textarea></div>
+        </div>
+        <button class="btn btn-primary" style="margin-top:1rem" onclick="saveConfig()">Guardar configuración</button>
+        <div class="save-banner" id="saveBanner">✅ Configuración guardada.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">🗑️ Base de datos</div>
+        <p style="font-size:13px;color:var(--ink3);margin-bottom:1rem">Hay <strong id="dbCount">0</strong> candidatos guardados.</p>
+        <button class="btn btn-secondary" onclick="exportCSV()">⬇ Exportar a Excel</button>
+        <button class="btn btn-danger" style="margin-left:8px" onclick="clearDB()">Borrar todo</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-ov" id="modalOv" onclick="closeModal(event)">
+  <div class="modal" id="modalBox"></div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+let db=[],queue=[],processing=false,sortKey='score_global',sortDir=-1,rn=1;
+
+function loadAll(){
+  try{db=JSON.parse(localStorage.getItem('talentai_db')||'[]');}catch(e){db=[];}
+  loadConfig();renderAll();
+}
+
+function saveDB(){localStorage.setItem('talentai_db',JSON.stringify(db));}
+
+function loadConfig(){
+  const c=JSON.parse(localStorage.getItem('talentai_cfg')||'{}');
+  if(c.apiKey)document.getElementById('cfgKey').value=c.apiKey;
+  if(c.wExp!==undefined)document.getElementById('wExp').value=c.wExp;
+  if(c.wTec!==undefined)document.getElementById('wTec').value=c.wTec;
+  if(c.wIdi!==undefined)document.getElementById('wIdi').value=c.wIdi;
+  if(c.wEst!==undefined)document.getElementById('wEst').value=c.wEst;
+  if(c.wSoft!==undefined)document.getElementById('wSoft').value=c.wSoft;
+  if(c.wEdu!==undefined)document.getElementById('wEdu').value=c.wEdu;
+  if(c.visas)document.getElementById('cfgVisas').value=c.visas;
+  if(c.roles)document.getElementById('cfgRoles').value=c.roles;
+  if(c.tools)document.getElementById('cfgTools').value=c.tools;
+  if(c.extra)document.getElementById('cfgExtra').value=c.extra;
+}
+
+function getConfig(){return JSON.parse(localStorage.getItem('talentai_cfg')||'{}');}
+
+function saveConfig(){
+  const cfg={
+    apiKey:document.getElementById('cfgKey').value.trim(),
+    wExp:document.getElementById('wExp').value,
+    wTec:document.getElementById('wTec').value,
+    wIdi:document.getElementById('wIdi').value,
+    wEst:document.getElementById('wEst').value,
+    wSoft:document.getElementById('wSoft').value,
+    wEdu:document.getElementById('wEdu').value,
+    visas:document.getElementById('cfgVisas').value,
+    roles:document.getElementById('cfgRoles').value,
+    tools:document.getElementById('cfgTools').value,
+    extra:document.getElementById('cfgExtra').value,
+  };
+  localStorage.setItem('talentai_cfg',JSON.stringify(cfg));
+  const b=document.getElementById('saveBanner');
+  b.style.display='block';setTimeout(()=>b.style.display='none',3000);
+}
+
+function showPage(id,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  el.classList.add('active');
+}
+
+document.getElementById('fi').addEventListener('change',e=>addFiles(Array.from(e.target.files)));
+const dz=document.getElementById('dz');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');addFiles(Array.from(e.dataTransfer.files));});
+
+function addFiles(files){
+  const ok=['pdf','docx','doc','txt'];
+  files.filter(f=>ok.includes(f.name.split('.').pop().toLowerCase())).forEach(f=>{
+    queue.push({id:Date.now()+Math.random(),file:f,name:f.name,size:(f.size/1024).toFixed(0)+' KB',status:'pending'});
+  });
+  renderQ();hideMsg();
+}
+
+function clearQ(){if(!processing){queue=[];renderQ();}}
+
+function renderQ(){
+  const qw=document.getElementById('qwrap'),ql=document.getElementById('qlist');
+  if(!queue.length){qw.style.display='none';return;}
+  qw.style.display='block';
+  document.getElementById('qTitle').textContent='CVs en cola ('+queue.length+')';
+  const lb={pending:'En cola',reading:'Leyendo...',analyzing:'Analizando...',done:'Listo ✓',error:'Error ✗'};
+  ql.innerHTML=queue.map(q=>`<div class="qi"><span class="qn">${q.name}</span><span class="qz">${q.size}</span><span class="qst st-${q.status}">${lb[q.status]}</span></div>`).join('');
+}
+
+async function extractText(file){
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(ext==='txt')return await file.text();
+  if(ext==='pdf'){
+    const buf=await file.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+    let text='';
+    for(let i=1;i<=pdf.numPages;i++){const page=await pdf.getPage(i);const c=await page.getTextContent();text+=c.items.map(s=>s.str).join(' ')+'\n';}
+    return text.trim();
+  }
+  if(ext==='docx'||ext==='doc'){const buf=await file.arrayBuffer();const r=await mammoth.extractRawText({arrayBuffer:buf});return r.value.trim();}
+  return await file.text();
+}
+
+async function processAll(){
+  const pending=queue.filter(q=>q.status==='pending');
+  if(!pending.length){showErr('No hay CVs en cola.');return;}
+  const cfg=getConfig();
+  const apiKey=cfg.apiKey||document.getElementById('cfgKey').value.trim();
+  if(!apiKey||apiKey.length<20){showErr('Configura tu API Key en ⚙️ Configuración primero.');return;}
+  if(processing)return;
+  processing=true;hideMsg();
+  document.getElementById('runBtn').disabled=true;
+  document.getElementById('prog').style.display='block';
+  document.getElementById('resCard').style.display='none';
+  document.getElementById('resRows').innerHTML='';
+  rn=1;
+  const total=pending.length;let done=0;
+
+  for(const item of pending){
+    try{
+      item.status='reading';renderQ();updP(done,total,'Leyendo: '+item.name);
+      const text=await extractText(item.file);
+      if(!text||text.length<80)throw new Error('No se pudo extraer texto. ¿Es PDF escaneado?');
+      item.status='analyzing';renderQ();updP(done,total,'Analizando: '+item.name);
+      const res=await fetch('/.netlify/functions/analyze',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({text,filename:item.name,apiKey,config:cfg})
+      });
+      const data=await res.json();
+      if(!data.ok)throw new Error(data.error||'Error desconocido');
+      data.data._id=Date.now()+Math.random();
+      db.push(data.data);
+      saveDB();renderAll();addResRow(data.data);
+      item.status='done';
+    }catch(e){item.status='error';console.error(item.name,e.message);}
+    done++;renderQ();updP(done,total,done<total?`CV ${done+1}/${total}`:'Completado');
+    if(done<total)await sleep(400);
+  }
+
+  processing=false;
+  document.getElementById('runBtn').disabled=false;
+  const errs=queue.filter(q=>q.status==='error').length;
+  const ok=done-errs;
+  if(ok>0){
+    document.getElementById('resCard').style.display='block';
+    showOk(`${ok} CV${ok!==1?'s':''} analizado${ok!==1?'s':''}.${errs?' '+errs+' con error.':''}`);
+  }else{
+    showErr('Todos fallaron. Verifica tu API Key en Configuración y que los PDFs tengan texto seleccionable.');
+  }
+}
+
+function addResRow(d){
+  document.getElementById('resCard').style.display='block';
+  const sc=d.score_global||0,col=scCol(sc),gc=grCls(d.grado);
+  const row=document.createElement('div');
+  row.className='res-row';
+  row.innerHTML=`<span style="font-weight:600">${rn}</span><span style="font-weight:500">${d.nombre||'—'}</span><span style="font-weight:700;color:${col}">${sc}</span><span><span class="grade ${gc}">${d.grado||'—'}</span></span><span style="color:var(--ink3)">${d.seniority||'—'}</span><span style="color:var(--ink3)">${d.ubicacion||'—'}</span>`;
+  document.getElementById('resRows').appendChild(row);rn++;
+}
+
+function renderAll(){
+  renderStats();renderTable();
+  document.getElementById('sbFoot').textContent=db.length+' candidato'+(db.length!==1?'s':'')+' guardados';
+  document.getElementById('dbCount').textContent=db.length;
+}
+
+function renderStats(){
+  document.getElementById('st1').textContent=db.length;
+  document.getElementById('st2').textContent=db.filter(c=>c.grado==='A+'||c.grado==='A').length;
+  const ik=['perm','niw','eb-','h-1b','l-1','o-1','asylum','refugee','tps','humanitarian','business','consular','removal'];
+  document.getElementById('st3').textContent=db.filter(c=>{const s=[...(c.tags||[]),...(c.visas_experiencia||[])].join(' ').toLowerCase();return ik.some(k=>s.includes(k));}).length;
+  document.getElementById('st4').textContent=db.filter(c=>(c.idiomas||[]).length>=2).length;
+}
+
+function getFiltered(){
+  const q=(document.getElementById('srch').value||'').toLowerCase();
+  const fg=document.getElementById('fGrade').value;
+  const fs=document.getElementById('fSen').value;
+  const fi=document.getElementById('fImm').value;
+  return db.filter(c=>{
+    const blob=[c.nombre,c.ubicacion,c.contacto,...(c.habilidades_tecnicas||[]),...(c.tags||[]),...(c.perfiles_rol||[])].join(' ').toLowerCase();
+    if(q&&!blob.includes(q))return false;
+    if(fg&&c.grado!==fg)return false;
+    if(fs&&c.seniority!==fs)return false;
+    if(fi){const ib=[...(c.visas_experiencia||[]),...(c.tags||[])].join(' ').toLowerCase();if(!ib.includes(fi.toLowerCase()))return false;}
+    return true;
+  }).sort((a,b)=>((a[sortKey]||0)>(b[sortKey]||0)?1:-1)*sortDir);
+}
+
+function renderTable(){
+  const rows=getFiltered();
+  const tbody=document.getElementById('tbody');
+  const empty=document.getElementById('emptyRank');
+  if(!rows.length){tbody.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  tbody.innerHTML=rows.map((c,i)=>{
+    const sc=c.score_global||0,col=scCol(sc);
+    const imm=(c.visas_experiencia||[]).slice(0,2).map(t=>`<span class="tag-pill tag-imm">${t}</span>`).join('');
+    const langs=(c.idiomas||[]).slice(0,2).map(l=>`<span class="tag-pill tag-lang">${l.idioma}</span>`).join('');
+    const roles=(c.perfiles_rol||[]).slice(0,1).map(r=>`<span class="tag-pill">${r}</span>`).join('');
+    return `<tr>
+      <td style="font-weight:600;font-family:'DM Mono',monospace">${i+1}</td>
+      <td><div style="font-weight:500">${c.nombre||'—'}</div><div style="font-size:10px;color:var(--ink4)">${c.contacto||''}</div></td>
+      <td><span style="font-weight:700;font-family:'DM Mono',monospace;color:${col}">${sc}</span></td>
+      <td><span class="grade ${grCls(c.grado)}">${c.grado||'—'}</span></td>
+      <td style="font-size:11px;color:var(--ink3)">${c.seniority||'—'}</td>
+      <td style="text-align:center;font-family:'DM Mono',monospace">${c.anos_experiencia||0}</td>
+      <td style="font-size:11px;color:var(--ink3)">${c.ubicacion||'—'}</td>
+      <td>${imm||'<span style="color:var(--ink4);font-size:11px">—</span>'}</td>
+      <td>${langs||'<span style="color:var(--ink4);font-size:11px">—</span>'}</td>
+      <td>${roles}</td>
+      <td><button class="act-btn" onclick="openModal(${c._id})">👁</button><button class="act-btn" onclick="delC(${c._id})">🗑</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function sortBy(k){if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=-1;}renderTable();}
+function clearFilters(){document.getElementById('srch').value='';document.getElementById('fGrade').value='';document.getElementById('fSen').value='';document.getElementById('fImm').value='';renderTable();}
+function delC(id){if(confirm('¿Eliminar este candidato?')){db=db.filter(c=>c._id!==id);saveDB();renderAll();}}
+
+function openModal(id){
+  const c=db.find(x=>x._id===id);if(!c)return;
+  const sc=c.score_global||0,col=scCol(sc);
+  const bars=[{l:'Experiencia',v:c.score_experiencia||0,m:35},{l:'Conocimientos técnicos',v:c.score_tecnico||0,m:25},{l:'Idiomas',v:c.score_idiomas||0,m:10},{l:'Estabilidad',v:c.score_estabilidad||0,m:10},{l:'Soft Skills',v:c.score_softskills||0,m:10},{l:'Educación',v:c.score_educacion||0,m:10}];
+  const bH=bars.map(b=>{const p=Math.round(b.m>0?(b.v/b.m)*100:0);return`<div class="bar-row"><span>${b.l}</span><div class="bar-track"><div class="bar-fill" style="width:${p}%;background:${col}"></div></div><div class="bar-val" style="color:${col}">${b.v}</div></div>`;}).join('');
+  const allTags=[...(c.tags||[]),...(c.visas_experiencia||[])];
+  document.getElementById('modalBox').innerHTML=`
+    <div class="modal-hdr"><h3>${c.nombre||'Candidato'}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="score-hero">
+      <div class="score-circle" style="border-color:${col}"><div class="sc-num" style="color:${col}">${sc}</div><div class="sc-lbl" style="color:${col}">/100</div></div>
+      <div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px"><span class="grade ${grCls(c.grado)}" style="font-size:13px;padding:3px 10px">${c.grado||'—'}</span><span style="font-size:13px;color:var(--ink3)">${c.seniority||''} · ${c.anos_experiencia||0} años</span></div><p style="font-size:13px;color:var(--ink2)">${c.resumen_profesional||''}</p></div>
+    </div>
+    <div>${bH}</div>
+    <div class="sec-lbl">Contacto</div>
+    <div class="kv-grid">
+      <div class="kv"><div class="k">Contacto</div><div class="v">${c.contacto||'—'}</div></div>
+      <div class="kv"><div class="k">Ciudad/País</div><div class="v">${c.ubicacion||'—'}</div></div>
+      <div class="kv"><div class="k">Disponibilidad</div><div class="v">${c.disponibilidad||'—'}</div></div>
+      <div class="kv"><div class="k">Zona horaria</div><div class="v">${c.zona_horaria||'—'}</div></div>
+      <div class="kv"><div class="k">Estabilidad</div><div class="v">${c.estabilidad||'—'}</div></div>
+      <div class="kv"><div class="k">Prom. empresa</div><div class="v">${c.tiempo_promedio_empresa||'—'}</div></div>
+    </div>
+    ${(c.empleos||[]).length?`<div class="sec-lbl">Experiencia</div>${c.empleos.map(e=>`<div style="margin-bottom:.5rem"><div style="font-size:13px;font-weight:500">${e.puesto||''} · ${e.empresa||''}</div><div style="font-size:11px;color:var(--ink3)">${e.periodo||''} · ${e.duracion||''} · ${e.industria||''}</div></div>`).join('')}`:''}
+    ${(c.habilidades_tecnicas||[]).length?`<div class="sec-lbl">Habilidades técnicas</div><div class="tags-row">${c.habilidades_tecnicas.map(s=>`<span class="tag-pill">${s}</span>`).join('')}</div>`:''}
+    ${(c.soft_skills||[]).length?`<div class="sec-lbl">Soft skills</div><div class="tags-row">${c.soft_skills.map(s=>`<span class="tag-pill">${s}</span>`).join('')}</div>`:''}
+    ${allTags.length?`<div class="sec-lbl">Etiquetas</div><div class="tags-row">${allTags.map(t=>`<span class="tag-pill ${tagCls(t)}">${t}</span>`).join('')}</div>`:''}
+    ${(c.vacantes_compatibles||[]).length?`<div class="sec-lbl">Matching</div>${c.vacantes_compatibles.map(v=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:13px;flex:1">${v.vacante}</span><span style="font-size:13px;font-weight:600;color:${scCol(parseInt(v.compatibilidad)||0)}">${v.compatibilidad}%</span></div>`).join('')}`:''}
+    ${(c.fortalezas||[]).length?`<div class="sec-lbl">Fortalezas</div>${c.fortalezas.map(f=>`<div style="font-size:13px;padding:2px 0">✓ ${f}</div>`).join('')}`:''}
+    ${(c.riesgos||[]).length?`<div class="sec-lbl">Riesgos</div>${c.riesgos.map(r=>`<div style="font-size:13px;padding:2px 0">⚠ ${r}</div>`).join('')}`:''}
+  `;
+  document.getElementById('modalOv').classList.add('open');
+}
+
+function closeModal(e){if(!e||e.target===document.getElementById('modalOv'))document.getElementById('modalOv').classList.remove('open');}
+
+function exportCSV(){
+  if(!db.length){alert('No hay candidatos para exportar.');return;}
+  const h=['Rank','Nombre','Contacto','Ciudad/País','Disponibilidad','Zona Horaria','Score','Grado','Seniority','Años Exp','Estabilidad','Cambios','Tiempo Prom','Visas/Inmigración','Roles','Idiomas','Habilidades Técnicas','Soft Skills','Sc.Exp','Sc.Tec','Sc.Idi','Sc.Est','Sc.Soft','Sc.Edu','Fortalezas','Áreas Oportunidad','Riesgos','Tags','Resumen','Archivo'];
+  const sorted=[...db].sort((a,b)=>(b.score_global||0)-(a.score_global||0));
+  const rows=sorted.map((c,i)=>[i+1,c.nombre||'',c.contacto||'',c.ubicacion||'',c.disponibilidad||'',c.zona_horaria||'',c.score_global||0,c.grado||'',c.seniority||'',c.anos_experiencia||0,c.estabilidad||'',c.cambios_empleo||0,c.tiempo_promedio_empresa||'',(c.visas_experiencia||[]).join(' | '),(c.perfiles_rol||[]).join(' | '),(c.idiomas||[]).map(l=>l.idioma+' ('+l.nivel+')').join(' | '),(c.habilidades_tecnicas||[]).join(' | '),(c.soft_skills||[]).join(' | '),c.score_experiencia||0,c.score_tecnico||0,c.score_idiomas||0,c.score_estabilidad||0,c.score_softskills||0,c.score_educacion||0,(c.fortalezas||[]).join(' | '),(c.areas_oportunidad||[]).join(' | '),(c.riesgos||[]).join(' | '),(c.tags||[]).join(', '),c.resumen_profesional||'',c._filename||'']);
+  const csv=[h,...rows].map(r=>r.map(cell=>{const s=String(cell).replace(/"/g,'""');return s.includes(',')||s.includes('\n')||s.includes('"')?`"${s}"`:s;}).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'}));
+  a.download='TalentAI_'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+}
+
+function clearDB(){if(confirm('¿Borrar toda la base de datos?')){db=[];saveDB();renderAll();}}
+function scCol(s){if(s>=90)return'#16a34a';if(s>=80)return'#2563ff';if(s>=70)return'#d97706';if(s>=60)return'#ea580c';return'#dc2626';}
+function grCls(g){return{'A+':'gAp','A':'gA','B':'gB','C':'gC','D':'gD'}[g]||'gD';}
+function tagCls(t){const tl=t.toLowerCase();if(['perm','niw','eb-','h-1b','l-1','o-1','asylum','refugee','tps','daca','humanitarian','removal','business','consular','family'].some(k=>tl.includes(k)))return'tag-imm';if(['inglés','español','francés','bilingüe','nativo','c2','c1','b2'].some(k=>tl.includes(k)))return'tag-lang';return'';}
+function updP(d,t,l){document.getElementById('progLbl').textContent=l;document.getElementById('progCnt').textContent=d+'/'+t;document.getElementById('progFill').style.width=Math.round((d/t)*100)+'%';}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function showErr(m){const e=document.getElementById('errMsg');e.textContent=m;e.style.display='block';document.getElementById('okMsg').style.display='none';}
+function showOk(m){const e=document.getElementById('okMsg');e.textContent=m;e.style.display='block';document.getElementById('errMsg').style.display='none';}
+function hideMsg(){document.getElementById('errMsg').style.display='none';document.getElementById('okMsg').style.display='none';}
+loadAll();
+</script>
+</body>
+</html>
